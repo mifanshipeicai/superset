@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import logging
 from typing import Any, Dict, Optional, TYPE_CHECKING
-
+from decimal import Decimal
 import simplejson
 from flask import current_app, make_response, request, Response
 from flask_appbuilder.api import expose, protect
@@ -48,6 +48,7 @@ from superset.utils.async_query_manager import AsyncQueryTokenException
 from superset.utils.core import create_zip, get_user_id, json_int_dttm_ser
 from superset.views.base import CsvResponse, generate_download_headers, XlsxResponse
 from superset.views.base_api import statsd_metrics
+import requests
 
 if TYPE_CHECKING:
     from superset.common.query_context import QueryContext
@@ -353,6 +354,18 @@ class ChartDataRestApi(ChartRestApi):
         if result_type == ChartDataResultType.POST_PROCESSED:
             result = apply_post_process(result, form_data, datasource)
 
+        # TODO request calculator service
+        url = 'http://localhost:8081/calculate'
+        resp_from_cal = requests.get(url)
+        #result['queries'][0]['data'] = resp_from_cal.text
+        #res_data = result['queries'][0]['data']
+        resp_from_cal_json = json.loads(resp_from_cal.text)
+        s0 = resp_from_cal_json[0]['fx weight sensi']
+        s1 = resp_from_cal_json[1]['fx weight sensi']
+        s2 = resp_from_cal_json[2]['fx weight sensi']
+        result['queries'][0]['data'][0]["fx weight sensi"] = Decimal.from_float(float(s0))
+        result['queries'][0]['data'][1]["fx weight sensi"] = Decimal.from_float(float(s1))
+        result['queries'][0]['data'][2]["fx weight sensi"] = Decimal.from_float(float(s2))
         if result_format in ChartDataResultFormat.table_like():
             # Verify user has permission to export file
             if not security_manager.can_access("can_csv", "Superset"):
